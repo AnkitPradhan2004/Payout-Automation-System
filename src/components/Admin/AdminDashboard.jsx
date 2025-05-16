@@ -1,37 +1,84 @@
-// src/components/Admin/AdminDashboard.jsx
-import React from "react";
-import { useNavigate } from "react-router-dom";
-import { auth } from "../../firebase/firebaseConfig";
-import useUserRole from "../../hooks/useUserRole";
+// src/pages/AdminDashboard.js
+import React, { useEffect, useState } from "react";
+import { auth, db } from "../firebase";
+import { collection, addDoc, getDocs, query, where } from "firebase/firestore";
+import "../styles/Dashboard.css";
 
-const AdminDashboard = () => {
-  const navigate = useNavigate();
-  const { role, loading } = useUserRole();
+function AdminDashboard() {
+  const [sessions, setSessions] = useState([]);
+  const [formData, setFormData] = useState({
+    mentor: "",
+    type: "",
+    date: "",
+    duration: "",
+    rate: ""
+  });
 
-  if (loading) return <div className="text-center mt-20">Loading...</div>;
+  const fetchSessions = async () => {
+    const querySnapshot = await getDocs(collection(db, "sessions"));
+    const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    setSessions(data);
+  };
 
-  if (!auth.currentUser || role !== "admin") {
-    navigate("/login");
-    return null;
-  }
+  useEffect(() => {
+    fetchSessions();
+  }, []);
+
+  const handleChange = e => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async e => {
+    e.preventDefault();
+    await addDoc(collection(db, "sessions"), {
+      ...formData,
+      duration: parseFloat(formData.duration),
+      rate: parseFloat(formData.rate),
+      createdAt: new Date().toISOString()
+    });
+    setFormData({ mentor: "", type: "", date: "", duration: "", rate: "" });
+    fetchSessions();
+  };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center">
-      <h1 className="text-3xl font-bold text-gray-800 mb-4">Admin Dashboard</h1>
-      <p className="text-lg text-gray-600">Welcome, {auth.currentUser.email}!</p>
-      <div className="mt-6 space-x-4">
-        <button className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700">
-          Manage Sessions
-        </button>
-        <button className="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
-          View Payouts
-        </button>
-        <button className="px-6 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700">
-          View Audit Logs
-        </button>
+    <div className="dashboard">
+      <h2>Admin Dashboard</h2>
+      <form onSubmit={handleSubmit} className="session-form">
+        <input name="mentor" placeholder="Mentor Email" onChange={handleChange} value={formData.mentor} required />
+        <input name="type" placeholder="Session Type" onChange={handleChange} value={formData.type} required />
+        <input name="date" type="date" onChange={handleChange} value={formData.date} required />
+        <input name="duration" type="number" placeholder="Duration (hours)" onChange={handleChange} value={formData.duration} required />
+        <input name="rate" type="number" placeholder="Rate/hour" onChange={handleChange} value={formData.rate} required />
+        <button type="submit">Add Session</button>
+      </form>
+
+      <div className="session-list">
+        <h3>Sessions</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Mentor</th>
+              <th>Type</th>
+              <th>Date</th>
+              <th>Duration</th>
+              <th>Rate</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sessions.map(session => (
+              <tr key={session.id}>
+                <td>{session.mentor}</td>
+                <td>{session.type}</td>
+                <td>{session.date}</td>
+                <td>{session.duration}</td>
+                <td>{session.rate}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
-};
+}
 
 export default AdminDashboard;
